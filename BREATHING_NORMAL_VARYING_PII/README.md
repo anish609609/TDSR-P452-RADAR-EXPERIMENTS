@@ -1,6 +1,6 @@
 # Breathing (Normal) – Varying PII
 
-This folder contains radar recordings of normal breathing collected using the TDSR P452 module at a distance of 0.5 m. The goal is to explore real-world radar data, understand system behavior through experiments, and build intuition by working directly with measured signals.
+This folder contains radar recordings of normal breathing collected using the TDSR P452 module at a distance of 0.5 m.
 
 ## Dataset Details
 - Number of scans: 600
