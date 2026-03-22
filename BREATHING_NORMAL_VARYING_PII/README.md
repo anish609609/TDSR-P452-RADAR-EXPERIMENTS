@@ -14,7 +14,7 @@ This folder contains radar recordings of normal breathing collected using the TD
 
 ---
 
-## Results (Manual Counting)
+## Results (Manual Counting for the total duration of about 75 seconds)
 
 | File Name                           | PII | Trial | Respiration Rate (BPM) |
 |------------------------------------|-----|-------|------------------------|
