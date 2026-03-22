@@ -2,13 +2,17 @@
 
 This folder contains radar recordings of normal breathing collected using the TDSR P452 module at a distance of 0.5 m.
 
+---
+
 ## Dataset Details
-- Number of scans: 600
-- Slow-time sampling rate: 8 Hz
-- Fast-time samples per scan: 864
-- Scan range: 0 ps to 52781 ps
-- Antenna gain: 63
-- Motion filter: IIR (order 3) via GUI
+- Number of scans: 600  
+- Slow-time sampling rate: 8 Hz  
+- Fast-time samples per scan: 864  
+- Scan range: 0 ps to 52781 ps  
+- Antenna gain: 63  
+- Motion filter: IIR (order 3) via GUI  
+
+---
 
 ## Results (Manual Counting)
 
@@ -24,10 +28,14 @@ This folder contains radar recordings of normal breathing collected using the TD
 | breathing_normal_0_5m_pii_11_001    | 11  | 2     | ~15                    |
 | breathing_normal_0_5m_pii_11_002    | 11  | 3     | ~14                    |
 
+---
+
 ## Observations
 - Typical respiration range: 12–16 BPM  
 - PII variation affects signal clarity and stability  
 - Manual counting performed over ~75 seconds  
+
+---
 
 ## Processing Scripts
 
@@ -36,18 +44,33 @@ This folder contains radar recordings of normal breathing collected using the TD
 
 - `raw_dc_rem_bandpass_zerophase_hanning_fft.m`  
   Processing pipeline:  
-  DC removal → band-pass filtering (0.1–0.5 Hz) → zero-phase filtering → Hanning window → FFT → respiration rate estimation.
+  **DC removal → band-pass filtering (0.1–0.5 Hz) → zero-phase filtering → Hanning window → FFT → respiration rate estimation**
+
+---
+
+## Approach
+
+This work is not about using a fixed pipeline, but about exploring and understanding the signal.
+
+The provided processing flow is only a starting point. Users are encouraged to:
+
+- Experiment with different windowing techniques  
+- Explore alternative filtering strategies  
+- Try phase-based estimation methods for improved vital sign extraction  
+- Modify and extend the pipeline based on observations  
+
+---
 
 ## How to Run
 
-1. Download all files in this folder.
-2. Open MATLAB and navigate to this folder.
-3. Ensure all `.m` files and dataset files are in the same directory.
+1. Download all files in this folder.  
+2. Open MATLAB and navigate to this folder.  
+3. Ensure all `.m` files and dataset files are in the same directory.  
 4. Run the processing script:
 
-   ```matlab
-   raw_dc_rem_bandpass_zerophase_hanning_fft
+```matlab
+raw_dc_rem_bandpass_zerophase_hanning_fft
 
-   % After running the script, a file selection window will appear.
-   % Select any .xlsx file from this folder.
-   % The script will process the data and display the respiration results.
+% After running the script, a file selection window will appear.
+% Select any .xlsx file from this folder.
+% The script will process the data and display the respiration results.
