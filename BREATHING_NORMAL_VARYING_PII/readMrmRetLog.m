@@ -1,159 +1,161 @@
-function [cfg,req,scn,det] = readMrmRetLog(varargin)
-% readMrmRetLog: Function to read MRM-RET log file.
+function [configData, requestData, scanData, detectData] = readMrmRetLog(varargin)
+% READMRMRETLOG Parses MRM-RET log CSV files and extracts structured data.
 %
-% Syntax
-% readMrmRetLog
-% readMrmRetLog(fnm)
-% readMrmRetLog(dnm,fnm)
-%
-% Input
-% fnm - string containing file name or complete path name
-% dnm - string containing directory name
-%
-% Output
-% cfg - structure containing configuration data
-% req - structure containing request data
-% scn - structure containing scan data
-% det - structure containing detection data
-%
-% Usage Notes
-% If no file name is provided, readMrmRetLog opens a dialog for the user to
-% select the desired file. The single input fnm can be a file name only or
-% a complete path name. The two inputs dnm and fnm are combined to make a
-% complete path name.
-%
-% See also UIGETFILE, FULLFILE.
-%
-% ChangeLog
-% 20150105 .txt to .csv
+% Syntax:
+%   [configData, requestData, scanData, detectData] = readMrmRetLog()
+%   [configData, requestData, scanData, detectData] = readMrmRetLog(fileName)
+%   [configData, requestData, scanData, detectData] = readMrmRetLog(dirName, fileName)
 
-% Copyright © 2011 Time Domain, Huntsville, AL
+    % Define input rules
+    targetFile = '';
+    switch nargin
+        % No arguments: Open file selection dialog
+        case 0
+            [file, path] = uigetfile('*.csv', 'Select MRM-RET Log File');
+            if isequal(file, 0)
+                error('File selection cancelled by user.');
+            end
+            targetFile = fullfile(path, file);
+            
+        % One argument: Assume it's the full path or file name
+        case 1
+            targetFile = varargin{1};
+            
+        % Two arguments: Combine directory and file name
+        case 2
+            targetFile = fullfile(varargin{1}, varargin{2});
+            
+        otherwise
+            error('Invalid number of input arguments.');
+    end
 
+    % Open the target file safely
+    fileID = fopen(targetFile, 'rt');
+    if fileID == -1
+        error('Unable to open file: %s', targetFile);
+    end
 
-% Handle input arguments.
-switch nargin
-  case 0
-    [fnm,dnm] = uigetfile('*.csv');
-  case 1
-    dnm = '';
-    fnm = varargin{1};
-  case 2
-    dnm = varargin{1};
-    fnm = varargin{2};
-  otherwise
-    error('Too many input arguments.')
+    % Initialize output data storage arrays
+    configData  = [];
+    requestData = [];
+    scanData    = [];
+    detectData  = [];
+
+    % Row tracking indices
+    idxCfg = 0; 
+    idxReq = 0; 
+    idxScn = 0; 
+    idxDet = 0;
+
+    % Read through the file line by line
+    while ~feof(fileID)
+        currentLine = fgetl(fileID);
+        if ~ischar(currentLine) || isempty(currentLine)
+            continue;
+        end
+        
+        % Locate entry markers by finding comma separations
+        commaPositions = strfind(currentLine, ',');
+        if length(commaPositions) < 2
+            continue; 
+        end
+        
+        % Extract the primary log identifier fields
+        headerBlock = textscan(currentLine(1:commaPositions(2)-1), '%s %s', 'Delimiter', ',');
+        rowType = headerBlock{1}{1};
+        dataType = headerBlock{2}{1};
+        
+        % Ignore standard metadata descriptions
+        if strcmp(rowType, 'Timestamp')
+            continue;
+        end
+        
+        % Parse rows depending on the log data category
+        switch dataType
+            case 'Config'
+                idxCfg = idxCfg + 1;
+                parsed = textscan(currentLine, '%f %s %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f', 'Delimiter', ',');
+                
+                configData(idxCfg).T = parsed{1};
+                configData(idxCfg).nodeID = parsed{3};
+                configData(idxCfg).Tstrt = parsed{4};
+                configData(idxCfg).Tstp = parsed{5};
+                configData(idxCfg).Nbin = parsed{6};
+                configData(idxCfg).BII = parsed{7};
+                configData(idxCfg).seg1Nsamp = parsed{8};
+                configData(idxCfg).seg2Nsamp = parsed{9};
+                configData(idxCfg).seg3Nsamp = parsed{10};
+                configData(idxCfg).seg4Nsamp = parsed{11};
+                configData(idxCfg).seg1Iadd = parsed{12};
+                configData(idxCfg).seg2Iadd = parsed{13};
+                configData(idxCfg).seg3Iadd = parsed{14};
+                configData(idxCfg).seg4Iadd = parsed{15};
+                configData(idxCfg).Iant = parsed{16};
+                configData(idxCfg).Gtmt = parsed{17};
+                configData(idxCfg).Ichan = parsed{18};
+
+            case 'MrmControlRequest'
+                idxReq = idxReq + 1;
+                parsed = textscan(currentLine, '%f %s %f %f %f', 'Delimiter', ',');
+                
+                requestData(idxReq).T = parsed{1};
+                requestData(idxReq).msgID = parsed{3};
+                requestData(idxReq).Nscn = parsed{4};
+                requestData(idxReq).Tint = parsed{5};
+                requestData(idxReq).stat = NaN; % Default status confirmation placeholder
+
+            case 'MrmControlConfirm'
+                parsed = textscan(currentLine, '%f %s %f %f', 'Delimiter', ',');
+                msgID = parsed{3};
+                statusValue = parsed{4};
+                
+                % Map confirmation back to the matching request ID
+                if idxReq > 0 && requestData(idxReq).msgID == msgID
+                    requestData(idxReq).stat = statusValue;
+                else
+                    error('MrmControlConfirm ID mismatch with current control request.');
+                end
+
+            case 'MrmFullScanInfo'
+                idxScn = idxScn + 1;
+                parsed = textscan(currentLine(1:commaPositions(16)-1), '%f %s %f %f %f %f %f %f %f %f %f %f %f %f %f %f', 'Delimiter', ',');
+                
+                scanData(idxScn).T = parsed{1};
+                scanData(idxScn).msgID = parsed{3};
+                scanData(idxScn).srcID = parsed{4};
+                scanData(idxScn).Tstmp = parsed{5};
+                scanData(idxScn).Tstrt = parsed{10};
+                scanData(idxScn).Tstp = parsed{11};
+                scanData(idxScn).Nbin = parsed{12};
+                scanData(idxScn).Nfilt = parsed{13};
+                scanData(idxScn).antID = parsed{14};
+                scanData(idxScn).Imode = parsed{15};
+                scanData(idxScn).Nscn = parsed{16};
+                
+                % Parse remaining line data as array vectors
+                scanData(idxScn).scn = str2num(currentLine(commaPositions(16)+1:end));
+
+            case 'MrmDetectionListInfo'
+                idxDet = idxDet + 1;
+                if length(commaPositions) < 4
+                    endPos = length(currentLine) + 1;
+                else
+                    endPos = commaPositions(4);
+                end
+                
+                parsed = textscan(currentLine(1:endPos-1), '%f %s %f %f', 'Delimiter', ',');
+                detectData(idxDet).T = parsed{1};
+                detectData(idxDet).msgID = parsed{3};
+                detectData(idxDet).Ndet = parsed{4};
+                detectData(idxDet).det = [];
+                
+                % Format detection positions into coordinate pairs
+                if detectData(idxDet).Ndet > 0
+                    detectData(idxDet).det = reshape(str2num(currentLine(endPos+1:end)), 2, []);
+                end
+        end
+    end
+
+    % Housekeeping: close data stream safely
+    fclose(fileID);
 end
-
-% Open file.
-fid = fopen(fullfile(dnm,fnm),'rt');
-
-% Create empty structures to append when number of element counters exceeds
-% size of structure. This process is used to allocate memory for structures
-% in blocks as needed rather than adding one element at a time. Block size
-% for appending to structures is hard coded. A modified version of this
-% function with a larger value would be useful when reading extremely large
-% files.
-N = 100;
-
-cfg_ = repmat(struct('T',[],'nodeID',[],'Tstrt',[],'Tstp',[],'Nbin',[],'BII',[],'seg1Nsamp',[],'seg2Nsamp',[],'seg3Nsamp',[],'seg4Nsamp',[],'seg1Iadd',[],'seg2Iadd',[],'seg3Iadd',[],'seg4Iadd',[],'Iant',[],'Gtmt',[],'Ichan',[]),1,N);
-req_ = repmat(struct('T',[],'msgID',[],'Nscn',[],'Tint',[],'stat',[]),1,N);
-scn_ = repmat(struct('T',[],'msgID',[],'srcID',[],'Tstmp',[],'Tstrt',[],'Tstp',[],'Nbin',[],'Nfilt',[],'antID',[],'Imode',[],'Nscn',[],'scn',[]),1,N);
-%scn_ = repmat(struct('T',[],'msgID',[],'srcID',[],'Tstmp',[],'Qchan',[],'RSSI',[],'Oldedg',[],'Olckspt',[],'Tstrt',[],'Tstp',[],'Nbin',[],'Nfilt',[],'antID',[],'Imode',[],'Nscn',[],'scn',[]),1,N);
-det_ = repmat(struct('T',[],'msgID',[],'Ndet',[],'det',[]),1,N);
-
-% Initialize structures and number of element counters.
-Kcfg = 0;
-Kreq = 0;
-Kscn = 0;
-Kdet = 0;
-
-cfg = [];
-req = [];
-scn = [];
-det = [];
-
-% Read file to end.
-while ~feof(fid)
-  % Get next line.
-  ln = fgetl(fid);
-  
-  % Get first two fields. Second field is the log entry type.
-  i = strfind(ln,',');
-  fld = textscan(ln(1:i(2)-1),'%s %s','Delimiter',',');
-  
-  % Switch on log entry type. In each case, the number of elements counter
-  % is incremented, the structure size is increased if necessary, fields
-  % are extracted, and data are put in the associated structure fields.
-  switch fld{1}{1}
-    case 'Timestamp'
-      % These are text lines describing the fields of each of the various
-      % log entries.
-
-    otherwise
-      %fprintf('%s\n',ln)
-      switch fld{2}{1}
-        case 'Config'
-          Kcfg = Kcfg + 1;
-          if Kcfg > length(cfg)
-            cfg = [cfg cfg_];
-          end
-          fld = textscan(ln,'%n %s %n %n %n %n %n %n %n %n %n %n %n %n %n %n %n %n','Delimiter',',');
-          cfg(Kcfg) = struct('T',fld{1},'nodeID',fld{3},'Tstrt',fld{4},'Tstp',fld{5},'Nbin',fld{6},'BII',fld{7},'seg1Nsamp',fld{8},'seg2Nsamp',fld{9},'seg3Nsamp',fld{10},'seg4Nsamp',fld{11},'seg1Iadd',fld{12},'seg2Iadd',fld{13},'seg3Iadd',fld{14},'seg4Iadd',fld{15},'Iant',fld{16},'Gtmt',fld{17},'Ichan',fld{18});
-
-        case 'MrmControlRequest'
-          Kreq = Kreq + 1;
-          if Kreq > length(req)
-            req = [req req_];
-          end
-          fld = textscan(ln,'%n %s %n %n %n','Delimiter',',');
-          req(Kreq)= struct('T',fld{1},'msgID',fld{3},'Nscn',fld{4},'Tint',fld{5},'stat',nan);
-
-        case 'MrmControlConfirm'
-          % This log entry does not have its own structure. It is part of
-          % the req structure and uses the latest req structure number of
-          % elements counter.
-          fld = textscan(ln,'%n %s %n %n','Delimiter',',');
-          if fld{3} == req(Kreq).msgID
-            req(Kreq).stat = fld{4};
-          else
-            error('MrmControlConfirm message ID does not match previous MrmControlRequest message ID.')
-          end
-
-        case 'MrmFullScanInfo'
-          Kscn = Kscn + 1;
-          if Kscn > length(scn)
-            scn = [scn scn_];
-          end
-          i = strfind(ln,',');
-          fld = textscan(ln(1:i(16)-1),'%n %s %n %n %n %n %n %n %n %n %n %n %n %n %n %n','Delimiter',',');
-          scn(Kscn) = struct('T',fld{1},'msgID',fld{3},'srcID',fld{4},'Tstmp',fld{5},'Tstrt',fld{10},'Tstp',fld{11},'Nbin',fld{12},'Nfilt',fld{13},'antID',fld{14},'Imode',fld{15},'Nscn',fld{16},'scn',[]);
-%          scn(Kscn) = struct('T',fld{1},'msgID',fld{3},'srcID',fld{4},'Tstmp',fld{5},'Qchan',fld{6},'RSSI',fld{7},'Oldedg',fld{8},'Olckspt',fld{9},'Tstrt',fld{10},'Tstp',fld{11},'Nbin',fld{12},'Nfilt',fld{13},'antID',fld{14},'Imode',fld{15},'Nscn',fld{16},'scn',[]);
-          scn(Kscn).scn = str2num(ln(i(16)+1:end));
-
-        case 'MrmDetectionListInfo'
-          Kdet = Kdet + 1;
-          if Kdet > length(det)
-            det = [det det_];
-          end
-          i = strfind(ln,',');
-          if length(i) < 4
-            i(4) = length(ln) + 1;
-          end
-          fld = textscan(ln(1:i(4)-1),'%n %s %n %n','Delimiter',',');
-          det(Kdet) = struct('T',fld{1},'msgID',fld{3},'Ndet',fld{4},'det',[]);
-          if det(Kdet).Ndet > 0
-            det(Kdet).det = reshape(str2num(ln(i(4)+1:end)),2,[]);
-          end
-
-      end
-  end
-end
-
-% Close file.
-fclose(fid);
-
-% Trim structures arrays to elements actually filled.
-cfg = cfg(1:Kcfg);
-req = req(1:Kreq);
-scn = scn(1:Kscn);
-det = det(1:Kdet);
